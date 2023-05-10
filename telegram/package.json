@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "needle": "^3.2.0",
+    "pg": "^8.10.0",
+    "telegraf": "^4.12.3-canary.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.1.2"
+  }
+}

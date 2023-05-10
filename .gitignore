@@ -1,7 +1,9 @@
 .keys
+.envrc
+.env
 credentials.json
 .DS_STORE
-node_modules
+node_modules/
 deprecated_importers/moves/daily
 *csv
 *tsv

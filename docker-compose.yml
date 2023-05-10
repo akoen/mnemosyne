@@ -1,0 +1,42 @@
+version: '2'
+
+services:
+  broker:
+    container_name: personal-broker
+    build:
+      context: ./broker
+      dockerfile: Dockerfile
+    command: npm run
+    volumes:
+      - ./broker:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+     - 5220:3000
+    depends_on:
+     - db
+
+  telegram:
+    container_name: personal-telegram
+    build:
+      context: ./telegram
+      dockerfile: Dockerfile
+    command: npm run
+    volumes:
+      - ./telegram:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+     - 5221:3000
+    depends_on:
+      - broker
+
+  db:
+    image: timescale/timescaledb:latest-pg15
+    restart: always
+    environment:
+      - POSTGRES_DB=personal
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+     - 5432:5432
+    volumes:
+      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/init.sql:ro

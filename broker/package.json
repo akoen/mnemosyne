@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "fastify": "^4.17.0",
+    "pg": "^8.10.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.6.6"
+  }
+}
