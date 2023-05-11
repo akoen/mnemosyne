@@ -530,13 +530,21 @@ function sendAvailableCommands(ctx) {
 //     }
 //   );
 // }
+//
+
+function validateUser(ctx) {
+  if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+    console.error("Invalid user " + ctx.update.message.from.username);
+    return false;
+  }
+  return true;
+}
 
 function handleSurvey(command, ctx) {
     let matchingCommandObject = userConfig[command];
 
     if (matchingCommandObject && matchingCommandObject.prompts) {
       console.log("User wants to run: " + command);
-      // saveLastRun(command);
       if (
         currentlyAskedPromptQueue.length > 0 &&
         currentlyAskedPromptMessageId
@@ -582,10 +590,7 @@ function initBot() {
   //
   // Those have to be above the regex match
   bot.hears("/skip", ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      console.error("Invalid user " + ctx.update.message.from.username);
-      return;
-    }
+    if(!validateUser(ctx)) return;
 
     console.log("user is skipping this question");
     ctx.reply(
@@ -595,19 +600,15 @@ function initBot() {
   });
 
   bot.hears("/skip_all", ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      return;
-    }
+    if(!validateUser(ctx)) return;
+
     currentlyAskedPromptQueue = [];
     triggerNextPromptFromQueue(ctx);
     ctx.reply("Okay, removing all questions that are currently in the queue");
   });
 
   bot.hears(/\/track (\w+)/, ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      console.error("Invalid user " + ctx.update.message.from.username);
-      return;
-    }
+    if(!validateUser(ctx)) return;
 
     let toTrack = ctx.match[1];
     console.log(
@@ -643,9 +644,7 @@ function initBot() {
   });
 
   bot.hears(/\/graph (\w+)/, ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      return;
-    }
+    if(!validateUser(ctx)) return;
 
     let metric = ctx.match[1];
     console.log("User wants to graph a specific value " + metric);
@@ -654,9 +653,8 @@ function initBot() {
   });
 
   bot.on("location", ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      return;
-    }
+    if(!validateUser(ctx)) return;
+
     if (currentlyAskedPromptMessageId == null) {
       ctx
         .reply(
@@ -678,9 +676,7 @@ function initBot() {
 
   // parse commands to start a survey
   bot.hears(/\/(\w+)/, ctx => {
-    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-      return;
-    }
+    if(!validateUser(ctx)) return;
 
     // user entered a command to start the survey
     let command = ctx.match[1];

@@ -270,6 +270,13 @@ function sendAvailableCommands(ctx) {
         ctx.reply("\n\n/skip\n/report\n\n/" + Object.keys(userConfig).join("\n/"));
     });
 }
+function validateUser(ctx) {
+    if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+        console.error("Invalid user " + ctx.update.message.from.username);
+        return false;
+    }
+    return true;
+}
 function handleSurvey(command, ctx) {
     var matchingCommandObject = userConfig[command];
     if (matchingCommandObject && matchingCommandObject.prompts) {
@@ -298,27 +305,22 @@ function initBot() {
         parseUserInput(ctx);
     });
     bot.hears("/skip", function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-            console.error("Invalid user " + ctx.update.message.from.username);
+        if (!validateUser(ctx))
             return;
-        }
         console.log("user is skipping this question");
         ctx.reply("Okay, skipping question. If you see yourself skipping a question too often, maybe it's time to rephrase or remove it");
         triggerNextPromptFromQueue(ctx);
     });
     bot.hears("/skip_all", function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+        if (!validateUser(ctx))
             return;
-        }
         currentlyAskedPromptQueue = [];
         triggerNextPromptFromQueue(ctx);
         ctx.reply("Okay, removing all questions that are currently in the queue");
     });
     bot.hears(/\/track (\w+)/, function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-            console.error("Invalid user " + ctx.update.message.from.username);
+        if (!validateUser(ctx))
             return;
-        }
         var toTrack = ctx.match[1];
         console.log("User wants to track a specific value, without the whole survey: " +
             toTrack);
@@ -344,16 +346,14 @@ function initBot() {
         }
     });
     bot.hears(/\/graph (\w+)/, function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+        if (!validateUser(ctx))
             return;
-        }
         var metric = ctx.match[1];
         console.log("User wants to graph a specific value " + metric);
     });
     bot.on("location", function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+        if (!validateUser(ctx))
             return;
-        }
         if (currentlyAskedPromptMessageId == null) {
             ctx
                 .reply("Sorry, I forgot the question I asked, this usually means it took too long for you to respond, please trigger the question again by running the `/` command")
@@ -371,9 +371,8 @@ function initBot() {
         triggerNextPromptFromQueue(ctx);
     });
     bot.hears(/\/(\w+)/, function (ctx) {
-        if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
+        if (!validateUser(ctx))
             return;
-        }
         var command = ctx.match[1];
         handleSurvey(command, ctx);
     });

@@ -16,7 +16,7 @@ CREATE TABLE raw_data (
     is_backfilled BOOLEAN NOT NULL DEFAULT FALSE,
 
     CHECK (time_imported >= time),
-    UNIQUE (time, prompt)
+    UNIQUE (time, metric)
 );
 
 -- CREATE_TABLE last_run (
