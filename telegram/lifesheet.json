@@ -1,7 +1,7 @@
 {
     "mood": {
         "description": "Track my current mood during the day",
-        "schedule": "eightTimesADay",
+        "schedule": "0 0/3 * * *",
         "prompts": [{
             "metric": "mood",
             "prompt": "How are you feeling today?",
@@ -22,8 +22,8 @@
         }]
     },
     "awake": {
-        "description": "Use this right when you woke up",
-        "schedule": "daily",
+        "description": "🌇 Good morning! Let's start your day.",
+        "schedule": "* * * * *",
         "prompts": [{
                 "prompt": "🌇 Good morning",
                 "format": "header"
@@ -100,7 +100,7 @@
     },
     "asleep": {
         "description": "Use this right when going to bed",
-        "schedule": "daily",
+        "schedule": "0 22 * * * *",
         "prompts": [{
                 "metric": "amazingThingsThatHappenedToday",
                 "prompt": "3 amazing things that happened today... [item 1]",
@@ -477,7 +477,7 @@
     },
     "week": {
         "description": "Use this once a week, ideally Monday or Tuesday morning",
-        "schedule": "weekly",
+        "schedule": "0 22 * * 0" ,
         "prompts": [{
                 "prompt": "💪 Let's talk fitness first",
                 "format": "header"

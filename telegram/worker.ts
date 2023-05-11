@@ -2,8 +2,12 @@
 import { Telegraf, Router, Markup} from "telegraf";
 
 // Internal dependencies
-let config = require("./config.js");
-import { Command, PromptToAsk } from "./config.js";
+import {Command, PromptToAsk } from "./config.js";
+
+const userConfig: { [key: string]: Command } = require("./lifesheet.json");
+
+import cron from "node-cron";
+import { argv0 } from "process";
 
 // Initialize Telegram bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -11,17 +15,17 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 // Initialize postgres connection
 var Client = require("pg").Client;
 var connectionString = process.env.DATABASE_URL;
-var client = new Client({
+var pgClient = new Client({
     connectionString: connectionString
 });
 
-client.connect(function (err, client, done) {
+pgClient.connect(function (err, client, done) {
     console.log(err);
     console.log(done);
 });
 console.log("Successfully connected to Postgres");
 
-client.query("SELECT NOW()", function (err, res) {
+pgClient.query("SELECT NOW()", function (err, res) {
     console.log(err, res);
 });
 
@@ -354,7 +358,7 @@ function insertNewValue(parsedUserValue, ctx, metric, format, fakeDate = null) {
     source: "telegram",
   };
 
-  client.query(
+  pgClient.query(
     {
       text:
         "INSERT INTO raw_data (" +
@@ -504,13 +508,13 @@ function parseUserInput(ctx, text = null) {
 function sendAvailableCommands(ctx) {
   ctx.reply("Available commands:").then(({ message_id }) => {
     ctx.reply(
-      "\n\n/skip\n/report\n\n/" + Object.keys(config.userConfig).join("\n/")
+      "\n\n/skip\n/report\n\n/" + Object.keys(userConfig).join("\n/")
     );
   });
 }
 
 // function saveLastRun(command) {
-//   client.query(
+//   pgClient.query(
 //     {
 //       text:
 //         "insert into last_run (command, last_run) VALUES ($1, $2) on conflict (command) do update set last_run = $2",
@@ -526,6 +530,39 @@ function sendAvailableCommands(ctx) {
 //     }
 //   );
 // }
+
+function handleSurvey(command, ctx) {
+    let matchingCommandObject = userConfig[command];
+
+    if (matchingCommandObject && matchingCommandObject.prompts) {
+      console.log("User wants to run: " + command);
+      // saveLastRun(command);
+      if (
+        currentlyAskedPromptQueue.length > 0 &&
+        currentlyAskedPromptMessageId
+      ) {
+        // Happens when the user triggers another survey, without having completed the first one yet
+        ctx.reply(
+          "^ Okay, but please answer my previous question also, thanks ^",
+          { reply_to_message_id: currentlyAskedPromptMessageId }
+        );
+      }
+
+      currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(
+        matchingCommandObject.prompts.slice(0)
+      ); // slice is a poor human's .clone basically
+
+      if (currentlyAskedPromptObject == null) {
+        triggerNextPromptFromQueue(ctx);
+      }
+    } else {
+      ctx
+        .reply("Sorry, I don't know how to run `/" + command)
+        .then(({ message_id }) => {
+          sendAvailableCommands(ctx);
+        });
+    }
+}
 
 function initBot() {
   console.log("Launching up Telegram bot...");
@@ -580,8 +617,8 @@ function initBot() {
 
     let promptToAsk: PromptToAsk = null;
 
-    Object.keys(config.userConfig).forEach(function(metric) {
-      var survey = config.userConfig[metric];
+    Object.keys(userConfig).forEach(function(metric) {
+      var survey = userConfig[metric];
       for (let i = 0; i < survey.prompts.length; i++) {
         let currentPrompt = survey.prompts[i];
         if (currentPrompt.metric == toTrack) {
@@ -647,36 +684,12 @@ function initBot() {
 
     // user entered a command to start the survey
     let command = ctx.match[1];
-    let matchingCommandObject = config.userConfig[command];
+    handleSurvey(command, ctx);
+  });
 
-    if (matchingCommandObject && matchingCommandObject.prompts) {
-      console.log("User wants to run: " + command);
-      // saveLastRun(command);
-      if (
-        currentlyAskedPromptQueue.length > 0 &&
-        currentlyAskedPromptMessageId
-      ) {
-        // Happens when the user triggers another survey, without having completed the first one yet
-        ctx.reply(
-          "^ Okay, but please answer my previous question also, thanks ^",
-          { reply_to_message_id: currentlyAskedPromptMessageId }
-        );
-      }
-
-      currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(
-        matchingCommandObject.prompts.slice(0)
-      ); // slice is a poor human's .clone basically
-
-      if (currentlyAskedPromptObject == null) {
-        triggerNextPromptFromQueue(ctx);
-      }
-    } else {
-      ctx
-        .reply("Sorry, I don't know how to run `/" + command)
-        .then(({ message_id }) => {
-          sendAvailableCommands(ctx);
-        });
-    }
+  bot.action(/\/(\w+)/, ctx => {
+    let command = ctx.match[1];
+    handleSurvey(command, ctx);
   });
 
   bot.start(ctx => ctx.reply("Welcome to FxLifeSheet"));
@@ -733,8 +746,27 @@ function initBot() {
   bot.on("sticker", ctx => ctx.reply("Sorry, I don't support stickers"));
   bot.hears("hi", ctx => ctx.reply("Hey there"));
 
+  // bot.on(callbackQuery("data"), ctx => {
+  //   console.log("hi", ctx.callbackQuery);
+  //   handleSurvey(ctx.callbackQuery.data, ctx);
+  // });
+
   // has to be last
   bot.launch();
 }
 
-export {};
+for(const [commandName, command] of Object.entries(userConfig)) {
+  cron.schedule(command.schedule, async () => {
+    console.log(`Reminding user to run /${commandName} again...`);
+    if (process.env.TELEGRAM_CHAT_ID == null) {
+      console.error("Please set the `TELEGRAM_CHAT_ID` ENV variable");
+    }
+
+    bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
+        `Hey, it's time to run /${commandName} again!`,
+        Markup.inlineKeyboard([
+        Markup.button.callback('Run now', '/' + commandName),
+      ])
+      );
+  })
+}

@@ -19,6 +19,12 @@ CREATE TABLE raw_data (
     UNIQUE (time, prompt)
 );
 
+-- CREATE_TABLE last_run (
+--   command TEXT PRIMARY KEY,
+--   last_run TIMESTAMPTZ(0) NOT NULL,
+--   last_message TIMESTAMPTZ(0) NOT NULL
+-- );
+
 SET TIME ZONE 'UTC';
 
 SELECT create_hypertable('raw_data', 'time');
