@@ -287,7 +287,6 @@ function triggerNextPromptFromQueue(ctx) {
       [getButtonText("1")],
       [getButtonText("0")]
     ];
-    shuffleArray(allButtons);
     keyboard = Markup.keyboard(allButtons)
       .oneTime()
   } else if (currentlyAskedPromptObject.format == "boolean") {
@@ -323,14 +322,6 @@ function triggerNextPromptFromQueue(ctx) {
   ) {
     // To show the graph before, as it takes a while to load
     // printGraph(currentlyAskedPromptObject.metric, ctx, 0, null, false);
-  }
-}
-
-// Taken from https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
   }
 }
 

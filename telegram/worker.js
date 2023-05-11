@@ -116,7 +116,6 @@ function triggerNextPromptFromQueue(ctx) {
             [getButtonText("1")],
             [getButtonText("0")]
         ];
-        shuffleArray(allButtons);
         keyboard = telegraf_1.Markup.keyboard(allButtons)
             .oneTime();
     }
