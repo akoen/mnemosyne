@@ -4,7 +4,7 @@ import { Telegraf, Router, Markup} from "telegraf";
 // Internal dependencies
 import {Command, PromptToAsk } from "./config.js";
 
-const userConfig: { [key: string]: Command } = require("./lifesheet.json");
+const userConfig: { [key: string]: Command } = require("./questions.json");
 
 import cron from "node-cron";
 import { argv0 } from "process";
@@ -744,7 +744,7 @@ function initBot() {
 
 for(const [commandName, command] of Object.entries(userConfig)) {
   cron.schedule(command.schedule, async () => {
-    console.log(`Reminding user to run /${commandName} again...`);
+    console.log(`It's ${(new Date()).toISOString()}. Reminding user to run /${commandName} again...`);
     if (process.env.TELEGRAM_CHAT_ID == null) {
       console.error("Please set the `TELEGRAM_CHAT_ID` ENV variable");
     }

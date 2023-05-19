@@ -40,7 +40,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var telegraf_1 = require("telegraf");
-var userConfig = require("./lifesheet.json");
+var userConfig = require("./questions.json");
 var node_cron_1 = __importDefault(require("node-cron"));
 var bot = new telegraf_1.Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 var Client = require("pg").Client;
@@ -145,13 +145,6 @@ function triggerNextPromptFromQueue(ctx) {
     if (currentlyAskedPromptObject.format == "number" ||
         currentlyAskedPromptObject.format == "range" ||
         currentlyAskedPromptObject.format == "boolean") {
-    }
-}
-function shuffleArray(array) {
-    var _a;
-    for (var i = array.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        _a = [array[j], array[i]], array[i] = _a[0], array[j] = _a[1];
     }
 }
 function insertNewValue(parsedUserValue, ctx, metric, format, fakeDate) {

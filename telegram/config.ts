@@ -17,7 +17,7 @@ interface PromptToAsk {
   replies: { [key: string]: String };
 }
 
-let url = process.env.LIFESHEET_JSON_URL;
+let url = process.env.QUESTIONS_JSON_URL;
 if (url) {
   console.log("Loading remote JSON config...");
   needle.get(url, function(error, response, body) {
@@ -26,7 +26,7 @@ if (url) {
     module.exports.userConfig = userConfig;
   });
 } else {
-  let userConfig: { [key: string]: Command } = require("./lifesheet.json");
+  let userConfig: { [key: string]: Command } = require("./questions.json");
   console.log("Successfully loaded user config");
   module.exports.userConfig = userConfig;
 }

@@ -1,0 +1,44 @@
+:root {
+  --jnl-size: 12rem;
+}
+
+
+body {
+  font-family: "Berkeley Mono";
+  color: #2d2d2d;
+}
+
+.container {
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#journal-root {
+  display: grid;
+  grid-template-columns: repeat(3, var(--jnl-size));
+  gap: 1rem;
+  justify-content: center;
+}
+
+.jnl {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  position: relative;
+
+  border: 2px solid;
+  height: var(--jnl-size)
+}
+
+.jnl--text {
+  text-align: center;
+  padding: 0.5rem;
+  font-weight: 600;
+}
+
+.jnl--date {
+  position: absolute;
+  top: 0
+}

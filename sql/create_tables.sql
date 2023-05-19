@@ -6,8 +6,8 @@
 
 CREATE TABLE raw_data (
     id SERIAL,
-    time TIMESTAMPTZ(0) NOT NULL,
-    time_imported TIMESTAMPTZ(0) NOT NULL,
+    time TIMESTAMP(0) NOT NULL,
+    time_imported TIMESTAMP(0) NOT NULL,
     metric TEXT NOT NULL,
     format TEXT NOT NULL,
     prompt TEXT,

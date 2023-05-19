@@ -1,42 +1,56 @@
 version: '2'
 
 services:
-  broker:
-    container_name: personal-broker
-    build:
-      context: ./broker
-      dockerfile: Dockerfile
-    command: npm run
-    volumes:
-      - ./broker:/usr/src/app
-      - /usr/src/app/node_modules
-    ports:
-     - 5220:3000
-    depends_on:
-     - db
+  # broker:
+  #   container_name: mnemosyne-broker
+  #   image: mnemosyne/broker
+  #   restart: unless-stopped
+  #   build:
+  #     context: ./broker
+  #     dockerfile: Dockerfile
+  #   command: npm run
+  #   volumes:
+  #     - ./broker:/usr/src/app
+  #     - /usr/src/app/node_modules
+  #   ports:
+  #    - 5220:3000
+  #   depends_on:
+  #    - db
 
   telegram:
-    container_name: personal-telegram
+    container_name: mnemosyne-telegram
+    image: mnemosyne/telegram
+    restart: unless-stopped
     build:
       context: ./telegram
       dockerfile: Dockerfile
-    command: npm run
-    volumes:
-      - ./telegram:/usr/src/app
-      - /usr/src/app/node_modules
-    ports:
-     - 5221:3000
+    #   - /usr/src/app/node_modules
+    env_file:
+      - .env
     depends_on:
-      - broker
+      - db
 
   db:
     image: timescale/timescaledb:latest-pg15
     restart: always
+    container_name: mnemosyne-db
     environment:
-      - POSTGRES_DB=personal
+      - POSTGRES_DB=mnemosyne
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
      - 5432:5432
     volumes:
       - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./db:/var/lib/postgresql/data
+
+  postgrest:
+    image: postgrest/postgrest
+    ports:
+      - "4800:3000"
+    environment:
+      PGRST_DB_URI: ${DATABASE_URL}
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://127.0.0.1:4800
+      PGRST_DB_ANON_ROLE: postgres
+    depends_on:
+      - db
