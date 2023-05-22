@@ -680,50 +680,6 @@ function initBot() {
   });
 
   bot.start(ctx => ctx.reply("Welcome to FxLifeSheet"));
-  // bot.on(["voice", "video_note"], ctx => {
-  //   if (ctx.update.message.from.username != process.env.TELEGRAM_USER_ID) {
-  //     return;
-  //   }
-  //   let message = ctx.message || ctx.update.channel_post;
-  //   let voice =
-  //     message.voice || message.document || message.audio || message.video_note;
-  //   let fileId = voice.file_id;
-  //   let transcribingMessageId = null;
-
-  //   console.log("Received voice with file ID '" + fileId + "'");
-  //   ctx
-  //     .reply(
-  //       "🦄 Received message, transcribing now...",
-  //       Extra.inReplyTo(ctx.message.message_id)
-  //     )
-  //     .then(({ message_id }) => {
-  //       transcribingMessageId = message_id;
-  //     });
-
-  //   let transcribeURL = "https://bubbles-transcribe.herokuapp.com/transcribe";
-  //   transcribeURL += "?file_id=" + fileId;
-  //   transcribeURL += "&language=en-US";
-  //   transcribeURL += "&telegram_token=" + process.env.TELEGRAM_BOT_TOKEN;
-
-  //   needle.get(transcribeURL, function(error, response, body) {
-  //     if (error) {
-  //       console.error(error);
-  //       ctx.reply("Error: " + error, Extra.inReplyTo(ctx.message.message_id));
-  //     }
-  //     let text = JSON.parse(body)["text"];
-
-  //     ctx.telegram.editMessageText(
-  //       ctx.update.message.chat.id,
-  //       transcribingMessageId,
-  //       null,
-  //       text
-  //     );
-
-  //     if (text != null && text.length > 5) {
-  //       parseUserInput(ctx, text);
-  //     }
-  //   });
-  // });
 
   bot.help(ctx =>
     ctx.reply(
