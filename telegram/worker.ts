@@ -67,183 +67,6 @@ function getButtonText(number) {
   return emojiNumber + " " + currentlyAskedPromptObject.buttons[number];
 }
 
-// function printGraph(
-//   metric,
-//   ctx,
-//   numberOfRecentValuesToPrint,
-//   additionalValue,
-//   skipImage
-// ) {
-//   client.query(
-//     {
-//       text:
-//         "SELECT * FROM raw_data WHERE metric = $1 ORDER BY timestamp DESC LIMIT 300",
-//       values: [metric]
-//     },
-//     (err, res) => {
-//       console.log(res);
-//       if (err) {
-//         console.error(err);
-//         ctx.reply(err);
-//         return;
-//       }
-//
-//       let rows = res.rows;
-//       console.log("Rows: " + rows.length);
-//
-//       let allValues = [];
-//       let allTimes = [];
-//       let rawText = [];
-//       let minimum = 10000;
-//       let maximum = 0;
-//       for (let i = 0; i < rows.length; i++) {
-//         let time = moment(Number(rows[i].timestamp));
-//         let value = Number(rows[i].value);
-//         allValues.unshift(value);
-//         allTimes.unshift(time.format("MM-DD"));
-//
-//         if (i < numberOfRecentValuesToPrint - 1) {
-//           rawText.unshift(time.format("YYYY-MM-DD") + ": " + value.toFixed(2));
-//         }
-//
-//         if (value < minimum) {
-//           minimum = value;
-//         }
-//         if (value > maximum) {
-//           maximum = value;
-//         }
-//       }
-//
-//       if (additionalValue) {
-//         allValues.push(additionalValue);
-//         allTimes.push(moment());
-//
-//         rawText.push(
-//           moment().format("YYYY-MM-DD") +
-//             ": " +
-//             Number(additionalValue).toFixed(2)
-//         );
-//       }
-//
-//       // Print the raw values
-//       if (numberOfRecentValuesToPrint > 2) {
-//         ctx.reply(
-//           rawText.join("\n") + "\nMinimum: " + minimum + "\nMaximum: " + maximum
-//         );
-//       }
-//
-//       // Generate the graph
-//       if (!skipImage) {
-//         minimum -= 2;
-//         maximum += 2;
-//
-//         let url =
-//           "https://chart.googleapis.com/chart?cht=lc&chd=t:" +
-//           allValues.join(",") +
-//           "&chs=800x350&chl=" +
-//           allTimes.join("%7C") +
-//           "&chtt=" +
-//           metric +
-//           "&chf=bg,s,e0e0e0&chco=000000,0000FF&chma=30,30,30,30&chds=" +
-//           minimum +
-//           "," +
-//           maximum;
-//         console.log(url);
-//         ctx.replyWithPhoto({
-//           url: url
-//         });
-//       }
-//
-//       if (numberOfRecentValuesToPrint > 0) {
-//         // Now render the week/month/quarter/year average
-//         //
-//
-//         const now = Date.now()
-//
-//         const periods = {
-//           week: 7*24*60*60*1000,
-//           month: 30*24*60*60*1000,
-//           quarter: 90*24*60*60*1000,
-//           year: 365*24*60*60*1000,
-//           all: now
-//         }
-//
-//         let queryToUse = "SELECT";
-//
-//         for(const [periodName, period] of Object.entries(periods)) {
-//           const timestamp = Math.floor((now - period) / 1000)
-//           queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${timestamp} AND metric='${metric}') as ${metric}${periodName},`;
-//           queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${timestamp} AND metric='${metric}') as ${metric}{periodName}.`;
-//         }
-//         // const weekTimestamp =
-//         //   moment()
-//         //     .subtract(7, "days")
-//         //     .unix() * 1000;
-//         // const monthTimestamp =
-//         //   moment()
-//         //     .subtract(30, "days")
-//         //     .unix() * 1000;
-//         // const quarterTimestamp =
-//         //   moment()
-//         //     .subtract(90, "days")
-//         //     .unix() * 1000;
-//         // const yearTimestamp =
-//         //   moment()
-//         //     .subtract(365, "days")
-//         //     .unix() * 1000;
-//
-//         // let athTimestamp = moment("2019-04-12").unix() * 1000;
-//         //
-//         // if (metric == "mood") {
-//         //   athTimestamp = moment("2018-02-01").unix() * 1000;
-//         // }
-//         // // After values
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${weekTimestamp} AND metric='${metric}') as ${metric}Week,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${monthTimestamp} AND metric='${metric}') as ${metric}Month,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${quarterTimestamp} AND metric='${metric}') as ${metric}Quarter,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${yearTimestamp} AND metric='${metric}') as ${metric}Year,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE timestamp > ${athTimestamp} AND metric='${metric}') as ${metric}AllTime,`;
-//         //
-//         // // Before values
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${weekTimestamp} AND metric='${metric}') as ${metric}WeekOld,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${monthTimestamp} AND metric='${metric}') as ${metric}MonthOld,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${quarterTimestamp} AND metric='${metric}') as ${metric}QuarterOld,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${yearTimestamp} AND metric='${metric}') as ${metric}YearOld,`;
-//         // queryToUse += `(SELECT ROUND(AVG(value::numeric), 4) FROM raw_data WHERE id != (SELECT id FROM raw_data WHERE metric='${metric}' ORDER BY id DESC LIMIT 1) AND timestamp > ${athTimestamp} AND metric='${metric}') as ${metric}AllTimeOld`;
-//
-//         console.log(queryToUse);
-//
-//         client.query(
-//           {
-//             text: queryToUse
-//           },
-//           (err, res) => {
-//             const rows = ["week", "month", "quarter", "year", "all"];
-//             let c = res.rows[0];
-//             console.log(c);
-//             let finalText = ["Moving averages for " + metric];
-//             for (let i = 0; i < rows.length; i++) {
-//               let newValue = c[metric.toLowerCase() + rows[i]];
-//               let oldValue = c[metric.toLowerCase() + rows[i] + "old"];
-//
-//               finalText.push(
-//                 roundNumberExactly(newValue, 2) +
-//                   " - " +
-//                   rows[i] +
-//                   " (" +
-//                   (newValue - oldValue > 0 ? "+" : "") +
-//                   roundNumberExactly(newValue - oldValue, 2) +
-//                   ")"
-//               );
-//             }
-//             ctx.reply(finalText.join("\n"));
-//           }
-//         );
-//       }
-//     }
-//   );
-// }
-
 function triggerNextPromptFromQueue(ctx) {
   // let keyboard = Extra.markup(m => m.removeKeyboard()); // default keyboard
   let keyboard;
@@ -314,15 +137,6 @@ function triggerNextPromptFromQueue(ctx) {
   ctx.reply(prompt, keyboard).then(({ message_id }) => {
     currentlyAskedPromptMessageId = message_id;
   });
-
-  if (
-    currentlyAskedPromptObject.format == "number" ||
-    currentlyAskedPromptObject.format == "range" ||
-    currentlyAskedPromptObject.format == "boolean"
-  ) {
-    // To show the graph before, as it takes a while to load
-    // printGraph(currentlyAskedPromptObject.metric, ctx, 0, null, false);
-  }
 }
 
 function insertNewValue(parsedUserValue, ctx, metric, format, fakeDate = null) {
@@ -455,15 +269,6 @@ function parseUserInput(ctx, text = null) {
       );
       return;
     }
-  }
-
-  if (
-    currentlyAskedPromptObject.format == "number" ||
-    currentlyAskedPromptObject.format == "range" ||
-    currentlyAskedPromptObject.format == "boolean"
-  ) {
-    // To show potential streaks and the history
-    // printGraph(currentlyAskedPromptObject.metric, ctx, 2, parsedUserValue, true);
   }
 
   console.log(
@@ -632,15 +437,6 @@ function initBot() {
           "`, please make sure it's not mispelled"
       );
     }
-  });
-
-  bot.hears(/\/graph (\w+)/, ctx => {
-    if(!validateUser(ctx)) return;
-
-    let metric = ctx.match[1];
-    console.log("User wants to graph a specific value " + metric);
-
-    // printGraph(metric, ctx, 100, null, false);
   });
 
   bot.on("location", ctx => {
