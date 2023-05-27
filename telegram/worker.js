@@ -56,12 +56,15 @@ console.log("Successfully connected to Postgres");
 pgClient.query("SELECT NOW()", function (err, res) {
     console.log(err, res);
 });
-var currentlyAskedPromptObject = null;
+var currentPrompt = null;
 var currentlyAskedPromptMessageId = null;
-var currentlyAskedPromptQueue = [];
+var promptQueue = [];
 initBot();
 function roundNumberExactly(number, decimals) {
     return (Math.round(number * Math.pow(10, decimals)) / Math.pow(10, decimals)).toFixed(decimals);
+}
+function timeEpoch(date) {
+    return date.getTime() / 1000;
 }
 function getButtonText(number) {
     var emojiNumber = {
@@ -72,8 +75,8 @@ function getButtonText(number) {
         "4": "4️⃣",
         "5": "5️⃣"
     }[number];
-    if (currentlyAskedPromptObject.buttons == null) {
-        currentlyAskedPromptObject.buttons = {
+    if (currentPrompt.question.buttons == null) {
+        currentPrompt.question.buttons = {
             "0": "Terrible",
             "1": "Bad",
             "2": "Okay",
@@ -82,32 +85,32 @@ function getButtonText(number) {
             "5": "Excellent"
         };
     }
-    return emojiNumber + " " + currentlyAskedPromptObject.buttons[number];
+    return emojiNumber + " " + currentPrompt.question.buttons[number];
 }
 function triggerNextPromptFromQueue(ctx) {
     var keyboard;
     keyboard = telegraf_1.Markup.removeKeyboard();
     var promptAppendix = "";
-    currentlyAskedPromptObject = currentlyAskedPromptQueue.shift();
-    if (currentlyAskedPromptObject == null) {
+    currentPrompt = promptQueue.shift();
+    if (currentPrompt == null) {
         ctx.reply("All done for now, let's do this 💪", keyboard);
         currentlyAskedPromptMessageId = null;
         return;
     }
-    if (currentlyAskedPromptObject.prompt == null) {
+    if (currentPrompt.question.prompt == null) {
         console.error("No text defined for");
-        console.error(currentlyAskedPromptObject);
+        console.error(currentPrompt);
     }
-    if (currentlyAskedPromptObject.format == "header") {
+    if (currentPrompt.question.format == "header") {
         ctx
-            .reply(currentlyAskedPromptObject.prompt, keyboard)
+            .reply(currentPrompt.question.prompt, keyboard)
             .then(function (_a) {
             var message_id = _a.message_id;
             triggerNextPromptFromQueue(ctx);
         });
         return;
     }
-    if (currentlyAskedPromptObject.format == "range") {
+    if (currentPrompt.question.format == "range") {
         var allButtons = [
             [getButtonText("5")],
             [getButtonText("4")],
@@ -119,57 +122,46 @@ function triggerNextPromptFromQueue(ctx) {
         keyboard = telegraf_1.Markup.keyboard(allButtons)
             .oneTime();
     }
-    else if (currentlyAskedPromptObject.format == "boolean") {
+    else if (currentPrompt.question.format == "boolean") {
         keyboard = telegraf_1.Markup.keyboard([["1: Yes"], ["0: No"]])
             .oneTime();
     }
-    else if (currentlyAskedPromptObject.format == "text") {
+    else if (currentPrompt.question.format == "text") {
         promptAppendix +=
             "You can use a Bear note, and then paste the deep link to the note here";
     }
-    else if (currentlyAskedPromptObject.format == "location") {
+    else if (currentPrompt.question.format == "location") {
         keyboard = telegraf_1.Markup.keyboard([telegraf_1.Markup.button.locationRequest("📡 Send location")]);
     }
-    promptAppendix = currentlyAskedPromptQueue.length + " more question";
-    if (currentlyAskedPromptQueue.length != 1) {
+    promptAppendix = promptQueue.length + " more question";
+    if (promptQueue.length != 1) {
         promptAppendix += "s";
     }
-    if (currentlyAskedPromptQueue.length == 0) {
+    if (promptQueue.length == 0) {
         promptAppendix = "last question";
     }
-    var prompt = currentlyAskedPromptObject.prompt + " (" + promptAppendix + ")";
+    var prompt = currentPrompt.question.prompt + " (" + promptAppendix + ")";
     ctx.reply(prompt, keyboard).then(function (_a) {
         var message_id = _a.message_id;
         currentlyAskedPromptMessageId = message_id;
     });
-    if (currentlyAskedPromptObject.format == "number" ||
-        currentlyAskedPromptObject.format == "range" ||
-        currentlyAskedPromptObject.format == "boolean") {
-    }
 }
-function insertNewValue(parsedUserValue, ctx, metric, format, fakeDate) {
-    if (fakeDate === void 0) { fakeDate = null; }
+function insertNewValue(parsedUserValue, ctx, metric, format, timestamp) {
     console.log("Inserting value '" + parsedUserValue + "' for metric " + metric);
-    var dateToAdd;
-    if (fakeDate) {
-        dateToAdd = fakeDate;
-    }
-    else {
-        dateToAdd = ctx.update.message.date;
-    }
     var prompt = null;
-    if (currentlyAskedPromptObject) {
-        prompt = currentlyAskedPromptObject.prompt;
+    if (currentPrompt) {
+        prompt = currentPrompt.question.prompt;
     }
     var row = {
-        time: dateToAdd,
-        time_imported: dateToAdd,
+        time: timestamp,
+        time_imported: timeEpoch(new Date),
         metric: metric,
         format: format,
         prompt: prompt,
         value: parsedUserValue,
         source: "telegram",
     };
+    console.log("Inserting row: ", row);
     pgClient.query({
         text: "INSERT INTO raw_data (" +
             Object.keys(row).join(",") +
@@ -210,9 +202,9 @@ function parseUserInput(ctx, text) {
         userValue = ctx.match[1];
     }
     var parsedUserValue = null;
-    if (currentlyAskedPromptObject.format != "text") {
-        if (currentlyAskedPromptObject.format == "range" ||
-            currentlyAskedPromptObject.format == "boolean") {
+    if (currentPrompt.question.format != "text") {
+        if (currentPrompt.question.format == "range" ||
+            currentPrompt.question.format == "boolean") {
             var tryToParseNumber = parseInt(userValue[0]);
             if (!isNaN(tryToParseNumber)) {
                 parsedUserValue = tryToParseNumber;
@@ -233,25 +225,21 @@ function parseUserInput(ctx, text) {
     else {
         parsedUserValue = userValue;
     }
-    if (currentlyAskedPromptObject.format == "range") {
+    if (currentPrompt.question.format == "range") {
         if (parsedUserValue < 0 || parsedUserValue > 6) {
             ctx.reply("Please enter a value from 0 to 6", { reply_to_message_id: ctx.update.message.message_id });
             return;
         }
     }
-    if (currentlyAskedPromptObject.format == "number" ||
-        currentlyAskedPromptObject.format == "range" ||
-        currentlyAskedPromptObject.format == "boolean") {
-    }
     console.log("Got a new value: " +
         parsedUserValue +
         " for metric " +
-        currentlyAskedPromptObject.metric);
-    if (currentlyAskedPromptObject.replies &&
-        currentlyAskedPromptObject.replies[parsedUserValue]) {
-        ctx.reply(currentlyAskedPromptObject.replies[parsedUserValue], { reply_to_message_id: ctx.update.message.message_id });
+        currentPrompt.question.metric);
+    if (currentPrompt.question.replies &&
+        currentPrompt.question.replies[parsedUserValue]) {
+        ctx.reply(currentPrompt.question.replies[parsedUserValue], { reply_to_message_id: ctx.update.message.message_id });
     }
-    insertNewValue(parsedUserValue, ctx, currentlyAskedPromptObject.metric, currentlyAskedPromptObject.format);
+    insertNewValue(parsedUserValue, ctx, currentPrompt.question.metric, currentPrompt.question.format, currentPrompt.metadata.timestamp);
     setTimeout(function () {
         triggerNextPromptFromQueue(ctx);
     }, 50);
@@ -269,16 +257,24 @@ function validateUser(ctx) {
     }
     return true;
 }
-function handleSurvey(command, ctx) {
-    var matchingCommandObject = userConfig[command];
-    if (matchingCommandObject && matchingCommandObject.prompts) {
+function handleSurvey(command, ctx, timestamp) {
+    var commandObject = userConfig[command];
+    if (commandObject && commandObject.questions) {
         console.log("User wants to run: " + command);
-        if (currentlyAskedPromptQueue.length > 0 &&
+        if (promptQueue.length > 0 &&
             currentlyAskedPromptMessageId) {
             ctx.reply("^ Okay, but please answer my previous question also, thanks ^", { reply_to_message_id: currentlyAskedPromptMessageId });
         }
-        currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(matchingCommandObject.prompts.slice(0));
-        if (currentlyAskedPromptObject == null) {
+        var questions = commandObject.questions.slice(0);
+        var prompts = questions.map(function (q) {
+            var prompt = {
+                question: q,
+                metadata: { timestamp: timestamp }
+            };
+            return prompt;
+        });
+        promptQueue = promptQueue.concat(prompts);
+        if (currentPrompt == null) {
             triggerNextPromptFromQueue(ctx);
         }
     }
@@ -306,29 +302,33 @@ function initBot() {
     bot.hears("/skip_all", function (ctx) {
         if (!validateUser(ctx))
             return;
-        currentlyAskedPromptQueue = [];
+        promptQueue = [];
         triggerNextPromptFromQueue(ctx);
         ctx.reply("Okay, removing all questions that are currently in the queue");
     });
     bot.hears(/\/track (\w+)/, function (ctx) {
         if (!validateUser(ctx))
             return;
+        var timestamp = timeEpoch(new Date);
         var toTrack = ctx.match[1];
         console.log("User wants to track a specific value, without the whole survey: " +
             toTrack);
         var promptToAsk = null;
         Object.keys(userConfig).forEach(function (metric) {
             var survey = userConfig[metric];
-            for (var i = 0; i < survey.prompts.length; i++) {
-                var currentPrompt = survey.prompts[i];
-                if (currentPrompt.metric == toTrack) {
-                    promptToAsk = currentPrompt;
+            for (var i = 0; i < survey.questions.length; i++) {
+                var currentQuestion = survey.questions[i];
+                if (currentQuestion.metric == toTrack) {
+                    promptToAsk = {
+                        question: currentQuestion,
+                        metadata: { timestamp: timestamp }
+                    };
                     return;
                 }
             }
         });
         if (promptToAsk) {
-            currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(promptToAsk);
+            promptQueue = promptQueue.concat(promptToAsk);
             triggerNextPromptFromQueue(ctx);
         }
         else {
@@ -336,12 +336,6 @@ function initBot() {
                 toTrack +
                 "`, please make sure it's not mispelled");
         }
-    });
-    bot.hears(/\/graph (\w+)/, function (ctx) {
-        if (!validateUser(ctx))
-            return;
-        var metric = ctx.match[1];
-        console.log("User wants to graph a specific value " + metric);
     });
     bot.on("location", function (ctx) {
         if (!validateUser(ctx))
@@ -358,19 +352,25 @@ function initBot() {
         var location = ctx.update.message.location;
         var lat = location.latitude;
         var lng = location.longitude;
-        insertNewValue(lat, ctx, "locationLat", "number");
-        insertNewValue(lng, ctx, "locationLng", "number");
+        insertNewValue(lat, ctx, "locationLat", "number", timeEpoch(new Date));
+        insertNewValue(lng, ctx, "locationLng", "number", timeEpoch(new Date));
         triggerNextPromptFromQueue(ctx);
     });
     bot.hears(/\/(\w+)/, function (ctx) {
         if (!validateUser(ctx))
             return;
         var command = ctx.match[1];
-        handleSurvey(command, ctx);
+        var timestamp = timeEpoch(new Date);
+        handleSurvey(command, ctx, timestamp);
     });
-    bot.action(/\/(\w+)/, function (ctx) {
-        var command = ctx.match[1];
-        handleSurvey(command, ctx);
+    bot.action(/(.*)/, function (ctx) {
+        var match = ctx.match[1];
+        console.log("Survey from inline button", match);
+        var _a = JSON.parse(match), command = _a[0], when = _a[1], timestamp = _a[2];
+        if (when === "now") {
+            timestamp = timeEpoch(new Date);
+        }
+        handleSurvey(command, ctx, timestamp);
     });
     bot.start(function (ctx) { return ctx.reply("Welcome to FxLifeSheet"); });
     bot.help(function (ctx) {
@@ -383,12 +383,13 @@ function initBot() {
 var _loop_1 = function (commandName, command) {
     node_cron_1.default.schedule(command.schedule, function () { return __awaiter(void 0, void 0, void 0, function () {
         return __generator(this, function (_a) {
-            console.log("Reminding user to run /".concat(commandName, " again..."));
+            console.log("It's ".concat((new Date()).toISOString(), ". Reminding user to run /").concat(commandName, " again..."));
             if (process.env.TELEGRAM_CHAT_ID == null) {
                 console.error("Please set the `TELEGRAM_CHAT_ID` ENV variable");
             }
             bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID, "Hey, it's time to run /".concat(commandName, " again!"), telegraf_1.Markup.inlineKeyboard([
-                telegraf_1.Markup.button.callback('Run now', '/' + commandName),
+                telegraf_1.Markup.button.callback('Run now', JSON.stringify([commandName, "now", ""])),
+                telegraf_1.Markup.button.callback('Run then', JSON.stringify([commandName, "then", timeEpoch(new Date)])),
             ]));
             return [2];
         });

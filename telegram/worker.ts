@@ -2,7 +2,7 @@
 import { Telegraf, Router, Markup} from "telegraf";
 
 // Internal dependencies
-import {Command, PromptToAsk } from "./config.js";
+import {Command, PromptToAsk, Question } from "./config.js";
 
 const userConfig: { [key: string]: Command } = require("./questions.json");
 
@@ -30,9 +30,9 @@ pgClient.query("SELECT NOW()", function (err, res) {
 });
 
 // State
-var currentlyAskedPromptObject: PromptToAsk = null;
+var currentPrompt: PromptToAsk = null;
 var currentlyAskedPromptMessageId: number = null; // The Telegram message ID reference
-let currentlyAskedPromptQueue: Array<PromptToAsk> = []; // keep track of all the prompts about to be asked
+let promptQueue: Array<PromptToAsk> = []; // keep track of all the prompts about to be asked
 
 initBot();
 
@@ -40,6 +40,10 @@ function roundNumberExactly(number, decimals) {
   return (
     Math.round(number * Math.pow(10, decimals)) / Math.pow(10, decimals)
   ).toFixed(decimals);
+}
+
+function timeEpoch(date: Date): number {
+  return date.getTime()/1000
 }
 
 function getButtonText(number) {
@@ -52,9 +56,9 @@ function getButtonText(number) {
     "5": "5️⃣"
   }[number];
 
-  if (currentlyAskedPromptObject.buttons == null) {
+  if (currentPrompt.question.buttons == null) {
     // Assign default values
-    currentlyAskedPromptObject.buttons = {
+    currentPrompt.question.buttons = {
       "0": "Terrible",
       "1": "Bad",
       "2": "Okay",
@@ -64,7 +68,7 @@ function getButtonText(number) {
     };
   }
 
-  return emojiNumber + " " + currentlyAskedPromptObject.buttons[number];
+  return emojiNumber + " " + currentPrompt.question.buttons[number];
 }
 
 function triggerNextPromptFromQueue(ctx) {
@@ -73,24 +77,24 @@ function triggerNextPromptFromQueue(ctx) {
   keyboard = Markup.removeKeyboard();
   let promptAppendix = "";
 
-  currentlyAskedPromptObject = currentlyAskedPromptQueue.shift();
+  currentPrompt = promptQueue.shift();
 
-  if (currentlyAskedPromptObject == null) {
+  if (currentPrompt == null) {
     ctx.reply("All done for now, let's do this 💪", keyboard);
     // Finished
     currentlyAskedPromptMessageId = null;
     return;
   }
 
-  if (currentlyAskedPromptObject.prompt == null) {
+  if (currentPrompt.question.prompt == null) {
     console.error("No text defined for");
-    console.error(currentlyAskedPromptObject);
+    console.error(currentPrompt);
   }
 
-  if (currentlyAskedPromptObject.format == "header") {
+  if (currentPrompt.question.format == "header") {
     // This is information only, just print and go to the next one
     ctx
-      .reply(currentlyAskedPromptObject.prompt, keyboard)
+      .reply(currentPrompt.question.prompt, keyboard)
       .then(({ message_id }) => {
         triggerNextPromptFromQueue(ctx);
       });
@@ -101,7 +105,7 @@ function triggerNextPromptFromQueue(ctx) {
   // - No way to use `force_reply` together with a custom keyboard (https://github.com/KrauseFx/FxLifeSheet/issues/5)
   // - No way to update existing messages together with a custom keyboard https://core.telegram.org/bots/api#updating-messages
 
-  if (currentlyAskedPromptObject.format == "range") {
+  if (currentPrompt.question.format == "range") {
     let allButtons = [
       [getButtonText("5")],
       [getButtonText("4")],
@@ -112,56 +116,52 @@ function triggerNextPromptFromQueue(ctx) {
     ];
     keyboard = Markup.keyboard(allButtons)
       .oneTime()
-  } else if (currentlyAskedPromptObject.format == "boolean") {
+  } else if (currentPrompt.question.format == "boolean") {
     keyboard = Markup.keyboard([["1: Yes"], ["0: No"]])
       .oneTime()
-  } else if (currentlyAskedPromptObject.format == "text") {
+  } else if (currentPrompt.question.format == "text") {
     // use the default keyboard we set here anyway
     promptAppendix +=
       "You can use a Bear note, and then paste the deep link to the note here";
-  } else if (currentlyAskedPromptObject.format == "location") {
+  } else if (currentPrompt.question.format == "location") {
     keyboard = Markup.keyboard([Markup.button.locationRequest("📡 Send location")])
   }
 
-  promptAppendix = currentlyAskedPromptQueue.length + " more question";
-  if (currentlyAskedPromptQueue.length != 1) {
+  promptAppendix = promptQueue.length + " more question";
+  if (promptQueue.length != 1) {
     promptAppendix += "s";
   }
-  if (currentlyAskedPromptQueue.length == 0) {
+  if (promptQueue.length == 0) {
     promptAppendix = "last question";
   }
 
   let prompt =
-    currentlyAskedPromptObject.prompt + " (" + promptAppendix + ")";
+    currentPrompt.question.prompt + " (" + promptAppendix + ")";
 
   ctx.reply(prompt, keyboard).then(({ message_id }) => {
     currentlyAskedPromptMessageId = message_id;
   });
 }
 
-function insertNewValue(parsedUserValue, ctx, metric, format, fakeDate = null) {
+function insertNewValue(parsedUserValue, ctx, metric, format, timestamp) {
   console.log("Inserting value '" + parsedUserValue + "' for metric " + metric);
 
-  let dateToAdd;
-  if (fakeDate) {
-    dateToAdd = fakeDate;
-  } else {
-    dateToAdd = ctx.update.message.date;
-  }
   let prompt = null;
-  if (currentlyAskedPromptObject) {
-    prompt = currentlyAskedPromptObject.prompt;
+  if (currentPrompt) {
+    prompt = currentPrompt.question.prompt;
   }
 
   let row = {
-    time: dateToAdd,
-    time_imported: dateToAdd,
+    time: timestamp,
+    time_imported: timeEpoch(new Date),
     metric: metric,
     format: format,
     prompt: prompt,
     value: parsedUserValue,
     source: "telegram",
   };
+
+  console.log("Inserting row: ", row)
 
   pgClient.query(
     {
@@ -226,12 +226,12 @@ function parseUserInput(ctx, text = null) {
 
   let parsedUserValue = null;
 
-  if (currentlyAskedPromptObject.format != "text") {
+  if (currentPrompt.question.format != "text") {
     // First, see if it starts with emoji number, for which we have to do custom
     // parsing instead
     if (
-      currentlyAskedPromptObject.format == "range" ||
-      currentlyAskedPromptObject.format == "boolean"
+      currentPrompt.question.format == "range" ||
+      currentPrompt.question.format == "boolean"
     ) {
       let tryToParseNumber = parseInt(userValue[0]);
       if (!isNaN(tryToParseNumber)) {
@@ -260,7 +260,7 @@ function parseUserInput(ctx, text = null) {
     parsedUserValue = userValue; // raw value is fine
   }
 
-  if (currentlyAskedPromptObject.format == "range") {
+  if (currentPrompt.question.format == "range") {
     // ensure the input is 0-6
     if (parsedUserValue < 0 || parsedUserValue > 6) {
       ctx.reply(
@@ -275,16 +275,16 @@ function parseUserInput(ctx, text = null) {
     "Got a new value: " +
       parsedUserValue +
       " for metric " +
-      currentlyAskedPromptObject.metric
+      currentPrompt.question.metric
   );
 
   if (
-    currentlyAskedPromptObject.replies &&
-    currentlyAskedPromptObject.replies[parsedUserValue]
+    currentPrompt.question.replies &&
+    currentPrompt.question.replies[parsedUserValue]
   ) {
     // Check if there is a custom reply, and if, use that
     ctx.reply(
-      currentlyAskedPromptObject.replies[parsedUserValue],
+      currentPrompt.question.replies[parsedUserValue],
       { reply_to_message_id: ctx.update.message.message_id }
     );
   }
@@ -292,8 +292,9 @@ function parseUserInput(ctx, text = null) {
   insertNewValue(
     parsedUserValue,
     ctx,
-    currentlyAskedPromptObject.metric,
-    currentlyAskedPromptObject.format
+    currentPrompt.question.metric,
+    currentPrompt.question.format,
+    currentPrompt.metadata.timestamp,
   );
 
   setTimeout(function() {
@@ -336,13 +337,13 @@ function validateUser(ctx) {
   return true;
 }
 
-function handleSurvey(command, ctx) {
-    let matchingCommandObject = userConfig[command];
+function handleSurvey(command, ctx, timestamp) {
+    let commandObject = userConfig[command];
 
-    if (matchingCommandObject && matchingCommandObject.prompts) {
+    if (commandObject && commandObject.questions) {
       console.log("User wants to run: " + command);
       if (
-        currentlyAskedPromptQueue.length > 0 &&
+        promptQueue.length > 0 &&
         currentlyAskedPromptMessageId
       ) {
         // Happens when the user triggers another survey, without having completed the first one yet
@@ -352,11 +353,18 @@ function handleSurvey(command, ctx) {
         );
       }
 
-      currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(
-        matchingCommandObject.prompts.slice(0)
-      ); // slice is a poor human's .clone basically
+      const questions: Array<Question> = commandObject.questions.slice(0) // slice is a poor human's .clone basically
+      const prompts: Array<PromptToAsk> = questions.map(q => {
+        const prompt: PromptToAsk = {
+          question: q,
+          metadata: {timestamp: timestamp}
+        }
+        return prompt
+      })
 
-      if (currentlyAskedPromptObject == null) {
+      promptQueue = promptQueue.concat(prompts); 
+
+      if (currentPrompt == null) {
         triggerNextPromptFromQueue(ctx);
       }
     } else {
@@ -398,13 +406,15 @@ function initBot() {
   bot.hears("/skip_all", ctx => {
     if(!validateUser(ctx)) return;
 
-    currentlyAskedPromptQueue = [];
+    promptQueue = [];
     triggerNextPromptFromQueue(ctx);
     ctx.reply("Okay, removing all questions that are currently in the queue");
   });
 
   bot.hears(/\/track (\w+)/, ctx => {
     if(!validateUser(ctx)) return;
+
+    const timestamp = timeEpoch(new Date)
 
     let toTrack = ctx.match[1];
     console.log(
@@ -416,17 +426,20 @@ function initBot() {
 
     Object.keys(userConfig).forEach(function(metric) {
       var survey = userConfig[metric];
-      for (let i = 0; i < survey.prompts.length; i++) {
-        let currentPrompt = survey.prompts[i];
-        if (currentPrompt.metric == toTrack) {
-          promptToAsk = currentPrompt;
+      for (let i = 0; i < survey.questions.length; i++) {
+        let currentQuestion: Question = survey.questions[i];
+        if (currentQuestion.metric == toTrack) {
+          promptToAsk = {
+            question: currentQuestion,
+            metadata: {timestamp: timestamp}
+          } 
           return;
         }
       }
     });
 
     if (promptToAsk) {
-      currentlyAskedPromptQueue = currentlyAskedPromptQueue.concat(
+      promptQueue = promptQueue.concat(
         promptToAsk
       );
       triggerNextPromptFromQueue(ctx);
@@ -456,8 +469,8 @@ function initBot() {
     let lat = location.latitude;
     let lng = location.longitude;
 
-    insertNewValue(lat, ctx, "locationLat", "number");
-    insertNewValue(lng, ctx, "locationLng", "number");
+    insertNewValue(lat, ctx, "locationLat", "number", timeEpoch(new Date));
+    insertNewValue(lng, ctx, "locationLng", "number", timeEpoch(new Date));
     triggerNextPromptFromQueue(ctx);
   });
 
@@ -467,12 +480,19 @@ function initBot() {
 
     // user entered a command to start the survey
     let command = ctx.match[1];
-    handleSurvey(command, ctx);
+    const timestamp = timeEpoch(new Date);
+    handleSurvey(command, ctx, timestamp);
   });
 
-  bot.action(/\/(\w+)/, ctx => {
-    let command = ctx.match[1];
-    handleSurvey(command, ctx);
+  bot.action(/(.*)/, ctx => {
+    const match = ctx.match[1];
+
+    console.log("Survey from inline button", match)
+    let [command, when, timestamp] = JSON.parse(match)
+    if (when === "now") {
+      timestamp = timeEpoch(new Date)
+    }
+    handleSurvey(command, ctx, timestamp);
   });
 
   bot.start(ctx => ctx.reply("Welcome to FxLifeSheet"));
@@ -504,7 +524,8 @@ for(const [commandName, command] of Object.entries(userConfig)) {
     bot.telegram.sendMessage(process.env.TELEGRAM_CHAT_ID,
         `Hey, it's time to run /${commandName} again!`,
         Markup.inlineKeyboard([
-        Markup.button.callback('Run now', '/' + commandName),
+        Markup.button.callback('Run now', JSON.stringify([commandName, "now", ""])),
+        Markup.button.callback('Run then', JSON.stringify([commandName, "then", timeEpoch(new Date)])),
       ])
       );
   })

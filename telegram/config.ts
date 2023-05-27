@@ -6,15 +6,20 @@ var needle = require("needle");
 interface Command {
   description: String;
   schedule: String;
-  prompts: [PromptToAsk];
+  questions: [Question];
 }
 
-interface PromptToAsk {
+interface Question {
   metric: String;
   prompt: String;
   format: String;
   buttons: { [key: string]: String };
   replies: { [key: string]: String };
+}
+
+interface PromptToAsk {
+  question: Question;
+  metadata: { timestamp: number };
 }
 
 let url = process.env.QUESTIONS_JSON_URL;
@@ -31,4 +36,4 @@ if (url) {
   module.exports.userConfig = userConfig;
 }
 
-export { Command, PromptToAsk };
+export { Command, Question, PromptToAsk };
